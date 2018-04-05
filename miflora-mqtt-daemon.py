@@ -19,6 +19,7 @@ import sdnotify
 
 project_name = 'Xiaomi Mi Flora Plant Sensor MQTT Client/Daemon'
 project_url = 'https://github.com/ThomDietrich/miflora-mqtt-daemon'
+mqtt_reconnect_period = 30
 
 parameters = OrderedDict([
     (MI_LIGHT, dict(name="LightIntensity", name_pretty='Sunlight Intensity', typeformat='%d', unit='lux')),
@@ -74,6 +75,10 @@ def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print_line('MQTT connection established', console=True, sd_notify=True)
         print()
+    elif rc == 3:
+        print_line("MQTT broker unavailable. Retrying in %s secs...",mqtt_reconnect_period)
+        sleep(mqtt_reconnect_period)
+        client.reconnect()
     else:
         print_line('Connection error with result code {} - {}'.format(str(rc), mqtt.connack_string(rc)), error=True)
         #kill main thread
@@ -135,7 +140,6 @@ base_topic = config['MQTT'].get('base_topic', default_base_topic).lower()
 device_id = config['MQTT'].get('homie_device_id', 'miflora-mqtt-daemon').lower()
 sleep_period = config['Daemon'].getint('period', 300)
 miflora_cache_timeout = sleep_period - 1
-
 # Check configuration
 if reporting_mode not in ['mqtt-json', 'mqtt-homie', 'json', 'mqtt-smarthome', 'homeassistant-mqtt']:
     print_line('Configuration parameter reporting_mode set to an invalid value', error=True, sd_notify=True)
@@ -178,6 +182,7 @@ if reporting_mode in ['mqtt-json', 'mqtt-homie', 'mqtt-smarthome', 'homeassistan
                             keepalive=config['MQTT'].getint('keepalive', 60))
     except:
         print_line('MQTT connection error. Please check your settings in the configuration file "config.ini"', error=True, sd_notify=True)
+        
         sys.exit(1)
     else:
         if reporting_mode == 'mqtt-smarthome':
@@ -218,7 +223,7 @@ for [name, mac] in config['Sensors'].items():
         flora_poller.fill_cache()
         flora_poller.parameter_value(MI_LIGHT)
         flora['firmware'] = flora_poller.firmware_version()
-    except IOError:
+    except :
         print_line('Initial connection to Mi Flora sensor "{}" ({}) failed.'.format(name_pretty, mac), error=True, sd_notify=True)
     else:
         print('Internal name: "{}"'.format(name_clean))
@@ -304,7 +309,7 @@ print_line('Initialization complete, starting MQTT publish loop', console=False,
 while True:
     for [flora_name, flora] in flores.items():
         data = dict()
-        attempts = 2
+        attempts = 20
         flora['poller']._cache = None
         flora['poller']._last_read = None
         flora['stats']['count'] = flora['stats']['count'] + 1
@@ -313,7 +318,7 @@ while True:
             try:
                 flora['poller'].fill_cache()
                 flora['poller'].parameter_value(MI_LIGHT)
-            except IOError:
+            except :
                 attempts = attempts - 1
                 if attempts > 0:
                     print_line('Retrying ...', warning = True)
