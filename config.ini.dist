@@ -73,3 +73,8 @@
 #JapaneseBonsai    = C4:7C:8D:44:55:66
 #Petunia@Balcony   = C4:7C:8D:77:88:99
 
+[Plants]
+#Sunlight = 500:
+#Temp = 15:32
+#Moisture = 15:65
+#Fertility = 350:2000
